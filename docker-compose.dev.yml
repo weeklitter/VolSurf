@@ -1,0 +1,27 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# VolSurf 开发环境 override
+#
+# 与 docker-compose.yml 配合使用：
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# 开发约定：
+#   - postgres / data-fetcher 跑在 Docker
+#   - .NET API 用 dotnet watch run（容器外，便于热重载）
+#   - frontend 用 npm run dev（容器外，便于热重载）
+# ═══════════════════════════════════════════════════════════════════════════
+
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  data-fetcher:
+    ports:
+      - "8000:8000"
+    environment:
+      # 开发环境从宿主机访问 .NET API
+      API_BASE_URL: http://host.docker.internal:5000
+
+  # dev 环境不暴露 nginx
+  nginx:
+    profiles: ["never"]

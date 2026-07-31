@@ -1,0 +1,115 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# VolSurf 生产环境 Docker Compose
+# 服务：postgres / api / data-fetcher / frontend / nginx
+# 启动：docker compose up -d
+# ═══════════════════════════════════════════════════════════════════════════
+
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://volsurf.yourdomain.com/api}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  api:
+    build:
+      context: .
+      dockerfile: src/VolSurf.Api/Dockerfile
+    ports:
+      - "5000:8080"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=volsurf;Username=volsurf;Password=${DB_PASSWORD}"
+      InternalKey__Key: ${INTERNAL_KEY}
+      RiskFreeRate__DefaultRate: ${RISK_FREE_RATE:-0.02}
+      Serilog__MinimumLevel__Default: ${SERILOG_MIN_LEVEL:-Information}
+      Cors__AllowedOrigins__0: ${CORS_ORIGIN:-https://volsurf.yourdomain.com}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  data-fetcher:
+    build: ./data-fetcher
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      TUSHARE_TOKEN: ${TUSHARE_TOKEN}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: volsurf
+      DB_USER: volsurf
+      DB_PASSWORD: ${DB_PASSWORD}
+      API_BASE_URL: http://api:8080
+      INTERNAL_KEY: ${INTERNAL_KEY}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: volsurf
+      POSTGRES_USER: volsurf
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U volsurf"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - api
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/letsencrypt:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  pgdata:
