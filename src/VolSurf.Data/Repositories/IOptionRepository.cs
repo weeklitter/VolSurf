@@ -47,4 +47,8 @@ public interface IOptionRepository
     // ── 合约信息 upsert ──
     /// <summary>批量 upsert 合约信息</summary>
     Task BulkUpsertContractsAsync(IEnumerable<OptionContract> records);
+
+    // ── 标的价格 ──
+    /// <summary>获取某标的最新一条 underlying_daily 记录</summary>
+    Task<UnderlyingDaily?> GetLatestUnderlyingDailyAsync(string underlying);
 }

@@ -21,7 +21,7 @@ public class IvResult
         SkipReason = reason
     };
 
-    public static IvResult Anomaly(double iv, string reason) => new()
+    public static IvResult AnomalyValue(double iv, string reason) => new()
     {
         Iv = iv,
         Anomaly = true,

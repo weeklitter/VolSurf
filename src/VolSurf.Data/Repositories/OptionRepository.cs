@@ -174,6 +174,14 @@ public class OptionRepository(VolSurfDbContext db) : IOptionRepository
             .MaxAsync();
     }
 
+    public async Task<UnderlyingDaily?> GetLatestUnderlyingDailyAsync(string underlying)
+    {
+        return await db.UnderlyingDaily
+            .Where(d => d.TsCode == underlying)
+            .OrderByDescending(d => d.TradeDate)
+            .FirstOrDefaultAsync();
+    }
+
     public async Task BulkUpsertContractsAsync(IEnumerable<OptionContract> records)
     {
         var list = records.ToList();

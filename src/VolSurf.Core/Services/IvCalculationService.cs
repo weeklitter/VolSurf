@@ -48,7 +48,7 @@ public class IvCalculationService
 
         // 4. IV 合理性检查
         if (iv < 0.05 || iv > 2.0)
-            return IvResult.Anomaly(iv.Value, "IV超出合理范围");
+            return IvResult.AnomalyValue(iv.Value, "IV超出合理范围");
 
         // 5. 计算 Greeks（BsPricer 返回年化原值，在此做转换）
         double delta = BsPricer.Delta(type, underlyingPrice, K, T, _riskFreeRate, iv.Value);

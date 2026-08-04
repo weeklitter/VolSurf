@@ -35,7 +35,7 @@ public class IvPercentileService(
                          select new
                          {
                              c.ExercisePrice,
-                             Iv = iv.Iv!.Value
+                             Iv = (double)iv.Iv!.Value
                          }).ToList();
 
         if (validData.Count == 0)

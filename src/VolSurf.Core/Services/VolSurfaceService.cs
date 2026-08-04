@@ -78,8 +78,8 @@ public class VolSurfaceService(IOptionRepository optRepo)
                         select new
                         {
                             c.ExercisePrice,
-                            Iv = iv.Iv!.Value,
-                            Delta = iv.Delta ?? 0
+                            Iv = (double)iv.Iv!.Value,
+                            Delta = iv.Delta.HasValue ? (double)iv.Delta.Value : 0.0
                         }).ToList();
 
         var putData = (from c in contracts
@@ -88,8 +88,8 @@ public class VolSurfaceService(IOptionRepository optRepo)
                        select new
                        {
                            c.ExercisePrice,
-                           Iv = iv.Iv!.Value,
-                           Delta = iv.Delta ?? 0
+                           Iv = (double)iv.Iv!.Value,
+                           Delta = iv.Delta.HasValue ? (double)iv.Delta.Value : 0.0
                        }).ToList();
 
         var underlyingDaily = await optRepo.GetLatestUnderlyingDailyAsync(underlying);
@@ -117,10 +117,10 @@ public class VolSurfaceService(IOptionRepository optRepo)
 
         // 25-delta skew：Delta ≈ -0.25 的 Put vs Delta ≈ +0.75 的 Call
         var put25Iv = putData.Count > 0
-            ? putData.OrderBy(x => Math.Abs((double)x.Delta + 0.25)).First().Iv
+            ? putData.OrderBy(x => Math.Abs(x.Delta + 0.25)).First().Iv
             : atmIv;
         var call25Iv = callData.Count > 0
-            ? callData.OrderBy(x => Math.Abs((double)x.Delta - 0.75)).First().Iv
+            ? callData.OrderBy(x => Math.Abs(x.Delta - 0.75)).First().Iv
             : atmIv;
         double skew25 = put25Iv - call25Iv;
 
@@ -174,7 +174,7 @@ public class VolSurfaceService(IOptionRepository optRepo)
                             select new
                             {
                                 c.ExercisePrice,
-                                Iv = iv.Iv!.Value
+                                Iv = (double)iv.Iv!.Value
                             }).ToList();
 
             if (expiryIv.Count == 0) continue;

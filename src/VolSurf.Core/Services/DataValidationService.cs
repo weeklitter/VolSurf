@@ -46,8 +46,8 @@ public class DataValidationService
             double K = (double)pair.Key.ExercisePrice;
 
             // 用各自的 IV 计算理论价格
-            double callPrice = BsPricer.Price(OptionType.Call, underlyingPrice, K, T, riskFreeRate, call.Iv);
-            double putPrice = BsPricer.Price(OptionType.Put, underlyingPrice, K, T, riskFreeRate, put.Iv);
+            double callPrice = BsPricer.Price(OptionType.Call, underlyingPrice, K, T, riskFreeRate, (double)call.Iv);
+            double putPrice = BsPricer.Price(OptionType.Put, underlyingPrice, K, T, riskFreeRate, (double)put.Iv);
 
             // Parity: C(IV_call) - P(IV_put) ≈ S - K*e^(-rT)
             double parityDiff = (callPrice - putPrice) - (underlyingPrice - K * Math.Exp(-riskFreeRate * T));
