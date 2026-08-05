@@ -123,19 +123,20 @@ public class OptionRepository(VolSurfDbContext db) : IOptionRepository
         var list = records.ToList();
         if (list.Count == 0) return;
 
+        // 表实际列名为 PascalCase（与 EF Core 实体属性一致）
         const string sql = @"
-            INSERT INTO options_iv_greeks (ts_code, trade_date, underlying, iv, delta, gamma, theta, vega, rho, iv_confidence, iv_anomaly)
+            INSERT INTO options_iv_greeks (""TsCode"", ""TradeDate"", ""Underlying"", ""Iv"", ""Delta"", ""Gamma"", ""Theta"", ""Vega"", ""Rho"", ""IvConfidence"", ""IvAnomaly"")
             VALUES (@ts_code, @trade_date, @underlying, @iv, @delta, @gamma, @theta, @vega, @rho, @iv_confidence, @iv_anomaly)
-            ON CONFLICT (ts_code, trade_date) DO UPDATE SET
-                underlying = EXCLUDED.underlying,
-                iv = EXCLUDED.iv,
-                delta = EXCLUDED.delta,
-                gamma = EXCLUDED.gamma,
-                theta = EXCLUDED.theta,
-                vega = EXCLUDED.vega,
-                rho = EXCLUDED.rho,
-                iv_confidence = EXCLUDED.iv_confidence,
-                iv_anomaly = EXCLUDED.iv_anomaly;";
+            ON CONFLICT (""TsCode"", ""TradeDate"") DO UPDATE SET
+                ""Underlying"" = EXCLUDED.""Underlying"",
+                ""Iv"" = EXCLUDED.""Iv"",
+                ""Delta"" = EXCLUDED.""Delta"",
+                ""Gamma"" = EXCLUDED.""Gamma"",
+                ""Theta"" = EXCLUDED.""Theta"",
+                ""Vega"" = EXCLUDED.""Vega"",
+                ""Rho"" = EXCLUDED.""Rho"",
+                ""IvConfidence"" = EXCLUDED.""IvConfidence"",
+                ""IvAnomaly"" = EXCLUDED.""IvAnomaly"";";
 
         foreach (var r in list)
         {

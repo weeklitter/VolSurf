@@ -73,6 +73,16 @@ builder.Services.AddSingleton(_ =>
     }));
 builder.Services.AddHostedService<CalcBackgroundService>();
 
+// 批量回算 Channel（单 reader，bound=1，避免并发回算冲突）
+builder.Services.AddSingleton(_ =>
+    Channel.CreateBounded<BulkBackfillRequest>(new BoundedChannelOptions(10)
+    {
+        FullMode = BoundedChannelFullMode.Wait,
+        SingleReader = true,
+        SingleWriter = false
+    }));
+builder.Services.AddHostedService<BulkBackfillBackgroundService>();
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ASP.NET Core 组件
 // ═══════════════════════════════════════════════════════════════════════════
