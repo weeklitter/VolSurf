@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import contextmanager
+from datetime import date, datetime
 from typing import Iterable
 
 import psycopg2
@@ -139,6 +140,117 @@ class DbWriter:
                 cur.execute(sql, (ts_code, trade_date, close))
         logger.info("Upserted underlying_daily %s %s close=%s", ts_code, trade_date, close)
         return 1
+
+    # ── 期权合约信息（PascalCase 列名对齐 EF Core 生成的 options_contracts） ─
+    def write_option_contracts(self, records: Iterable[dict]) -> int:
+        """批量 upsert 期权合约信息到 options_contracts。
+
+        列名：TsCode / Symbol / Exchange / Name / Underlying / CallPut /
+              ExercisePrice / ExerciseType / OptMultiplier /
+              MaturityDate / ListDate / DelistDate / Adjusted
+              / CreatedAt / UpdatedAt
+        """
+        rows = []
+        for r in records:
+            # accept both camelCase (from new fetcher) and snake_case inputs
+            ts_code = r.get("ts_code")
+            if not ts_code:
+                continue
+
+            maturity_date = r.get("maturity_date")
+            if maturity_date is None:
+                # 无到期日无法建索引，跳过
+                continue
+
+            # maturity_date 可能是 date / datetime / str
+            if isinstance(maturity_date, datetime):
+                mdate = maturity_date.date()
+            elif isinstance(maturity_date, date):
+                mdate = maturity_date
+            else:
+                s = str(maturity_date)
+                try:
+                    mdate = datetime.strptime(s, "%Y-%m-%d").date()
+                except ValueError:
+                    try:
+                        mdate = datetime.strptime(s, "%Y%m%d").date()
+                    except ValueError:
+                        continue
+
+            list_date = r.get("list_date")
+            ldate = None
+            if list_date is not None:
+                if isinstance(list_date, datetime):
+                    ldate = list_date.date()
+                elif isinstance(list_date, date):
+                    ldate = list_date
+                else:
+                    try:
+                        ldate = datetime.strptime(str(list_date), "%Y-%m-%d").date()
+                    except ValueError:
+                        ldate = None
+
+            delist_date = r.get("delist_date")
+            ddate = None
+            if delist_date is not None:
+                if isinstance(delist_date, datetime):
+                    ddate = delist_date.date()
+                elif isinstance(delist_date, date):
+                    ddate = delist_date
+                else:
+                    try:
+                        ddate = datetime.strptime(str(delist_date), "%Y-%m-%d").date()
+                    except ValueError:
+                        ddate = None
+
+            rows.append(
+                (
+                    ts_code,
+                    r.get("symbol") or "",
+                    r.get("exchange") or "SSE",
+                    r.get("name") or "",
+                    r.get("underlying") or "",
+                    r.get("call_put") or "C",
+                    r.get("exercise_price"),
+                    r.get("exercise_type") or "欧式",
+                    r.get("opt_multiplier") if r.get("opt_multiplier") is not None else 1,
+                    mdate,
+                    ldate,
+                    ddate,
+                    bool(r.get("adjusted", False)),
+                )
+            )
+
+        if not rows:
+            return 0
+
+        # execute_values 仅支持单 VALUES 占位符 %s，这里改用 executemany
+        sql = """
+        INSERT INTO options_contracts
+            ("TsCode", "Symbol", "Exchange", "Name", "Underlying", "CallPut",
+             "ExercisePrice", "ExerciseType", "OptMultiplier",
+             "MaturityDate", "ListDate", "DelistDate", "Adjusted",
+             "CreatedAt", "UpdatedAt")
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+        ON CONFLICT ("TsCode") DO UPDATE SET
+            "Symbol"         = EXCLUDED."Symbol",
+            "Exchange"       = EXCLUDED."Exchange",
+            "Name"           = EXCLUDED."Name",
+            "Underlying"     = EXCLUDED."Underlying",
+            "CallPut"        = EXCLUDED."CallPut",
+            "ExercisePrice"  = EXCLUDED."ExercisePrice",
+            "ExerciseType"   = EXCLUDED."ExerciseType",
+            "OptMultiplier"  = EXCLUDED."OptMultiplier",
+            "MaturityDate"   = EXCLUDED."MaturityDate",
+            "ListDate"       = EXCLUDED."ListDate",
+            "Adjusted"       = EXCLUDED."Adjusted",
+            "UpdatedAt"      = NOW();
+        """
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                cur.executemany(sql, rows)
+        logger.info("Upserted %d option_contracts records", len(rows))
+        return len(rows)
 
     # ── 标的基础信息 ─────────────────────────────────────────────────────
     def upsert_underlying(self, ts_code: str, name: str, exchange: str, asset_class: str, sort_order: int = 0) -> int:
