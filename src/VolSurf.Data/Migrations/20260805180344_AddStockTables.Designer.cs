@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using VolSurf.Data;
@@ -11,9 +12,11 @@ using VolSurf.Data;
 namespace VolSurf.Data.Migrations
 {
     [DbContext(typeof(VolSurfDbContext))]
-    partial class VolSurfDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260805180344_AddStockTables")]
+    partial class AddStockTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

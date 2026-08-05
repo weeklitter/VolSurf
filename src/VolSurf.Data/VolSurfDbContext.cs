@@ -12,6 +12,15 @@ public class VolSurfDbContext(DbContextOptions<VolSurfDbContext> options) : DbCo
     public DbSet<UnderlyingDaily> UnderlyingDaily => Set<UnderlyingDaily>();
     public DbSet<IvPercentileCache> IvPercentileCache => Set<IvPercentileCache>();
 
+    // 股票分析模块
+    public DbSet<StockBasic> StockBasic => Set<StockBasic>();
+    public DbSet<StockDaily> StockDaily => Set<StockDaily>();
+    public DbSet<StockIncome> StockIncome => Set<StockIncome>();
+    public DbSet<StockBalanceSheet> StockBalanceSheet => Set<StockBalanceSheet>();
+    public DbSet<StockCashflow> StockCashflow => Set<StockCashflow>();
+    public DbSet<StockBusiness> StockBusiness => Set<StockBusiness>();
+    public DbSet<StockDailyBasic> StockDailyBasic => Set<StockDailyBasic>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // 自动应用所有 IEntityTypeConfiguration
