@@ -54,7 +54,7 @@ def main() -> int:
         user="volsurf",
         password="__DB_PASSWORD__",
     )
-    written = writer.write_option_contracts(contracts)
+    written = writer.upsert_option_contracts(contracts)
     log.info("成功写入 %d 条", written)
 
     log.info("Step 3: 验证数据库内容")

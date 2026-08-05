@@ -4,12 +4,84 @@ from __future__ import annotations
 import logging
 from contextlib import contextmanager
 from datetime import date, datetime
-from typing import Iterable
+from decimal import Decimal
+from typing import Iterable, Optional
 
 import psycopg2
 from psycopg2.extras import execute_values
 
 logger = logging.getLogger(__name__)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 类型转换 helpers
+# ═══════════════════════════════════════════════════════════════════════════
+def _to_date(value) -> Optional[date]:
+    """YYYYMMDD / YYYY-MM-DD / date / datetime / NaN -> date 或 None。"""
+    if value is None:
+        return None
+    if isinstance(value, float):  # NaN
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    s = str(value).strip()
+    if not s or s.lower() in ("nan", "none", "null"):
+        return None
+    for fmt in ("%Y%m%d", "%Y-%m-%d", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _to_str(value, default: str = "") -> str:
+    """NaN / None -> default;否则转 str。"""
+    if value is None:
+        return default
+    if isinstance(value, float):
+        return default
+    s = str(value).strip()
+    if not s or s.lower() in ("nan", "none", "null"):
+        return default
+    return s
+
+
+def _to_decimal(value) -> Optional[Decimal]:
+    """None / NaN / np.* / str / Decimal -> Decimal 或 None。"""
+    if value is None:
+        return None
+    try:
+        import numpy as np  # noqa: WPS433
+    except ImportError:
+        np = None  # type: ignore[assignment]
+
+    if np is not None:
+        if isinstance(value, np.floating) and np.isnan(value):
+            return None
+        if isinstance(value, np.integer):
+            return Decimal(int(value))
+        if isinstance(value, np.floating):
+            return Decimal(str(float(value)))
+
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, float):
+        if value != value:  # NaN
+            return None
+        return Decimal(str(value))
+    if isinstance(value, int):
+        return Decimal(value)
+
+    s = str(value).strip().replace(",", "")
+    if not s or s.lower() in ("nan", "none", "null"):
+        return None
+    try:
+        return Decimal(s)
+    except Exception:  # noqa: BLE001
+        return None
 
 
 class DbWriter:
@@ -35,192 +107,144 @@ class DbWriter:
         finally:
             conn.close()
 
-    # ── 期权日线 ─────────────────────────────────────────────────────────
+    # ── 期权日线（PascalCase 列名对齐 EF Core 生成的 options_daily） ──
     def write_option_daily(self, records: list[dict]) -> int:
-        if not records:
-            return 0
+        """批量 upsert 期权日线行情到 options_daily。
 
-        rows = [
-            (
-                r.get("ts_code"),
-                r.get("trade_date"),
-                r.get("underlying", ""),
-                r.get("open"),
-                r.get("high"),
-                r.get("low"),
-                r.get("close"),
-                r.get("settle"),
-                r.get("vol"),
-                r.get("amount"),
-                r.get("oi"),
-            )
-            for r in records
-        ]
-
-        sql = """
-        INSERT INTO options_daily
-            (ts_code, trade_date, underlying, open, high, low, close, settle, vol, amount, oi)
-        VALUES %s
-        ON CONFLICT (ts_code, trade_date) DO UPDATE SET
-            underlying = EXCLUDED.underlying,
-            open       = EXCLUDED.open,
-            high       = EXCLUDED.high,
-            low        = EXCLUDED.low,
-            close      = EXCLUDED.close,
-            settle     = EXCLUDED.settle,
-            vol        = EXCLUDED.vol,
-            amount     = EXCLUDED.amount,
-            oi         = EXCLUDED.oi;
+        表 schema（来自 EF Core Migration 20260805065740_InitialCreate）：
+            "TsCode"        varchar(30) PK
+            "TradeDate"     date        PK
+            "Underlying"    varchar(20)
+            "Open"/"High"/"Low"/"Close"/"Settle"  numeric(10,4)
+            "Vol"/"Amount"/"Oi"                   numeric(15,*)
+        记录字段名延续 camelCase（fetcher 输出），写入前转 date 类型。
         """
-        with self._conn() as conn:
-            with conn.cursor() as cur:
-                execute_values(cur, sql, rows, page_size=500)
-        logger.info("Upserted %d option_daily records", len(rows))
-        return len(rows)
+        rows: list[tuple] = []
+        for r in records:
+            ts_code = r.get("ts_code")
+            if not ts_code:
+                continue
 
-    # ── 期权合约信息 ─────────────────────────────────────────────────────
-    def upsert_option_contracts(self, records: Iterable[dict]) -> int:
-        rows = [
-            (
-                r.get("ts_code"),
-                r.get("symbol"),
-                r.get("exchange"),
-                r.get("name"),
-                r.get("underlying"),
-                r.get("call_put"),
-                r.get("exercise_price"),
-                r.get("exercise_type", "欧式"),
-                r.get("opt_multiplier", 1),
-                r.get("maturity_date"),
-                r.get("list_date"),
-                r.get("delist_date"),
-                bool(r.get("adjusted", False)),
+            trade_date = _to_date(r.get("trade_date"))
+            if trade_date is None:
+                # Tushare 返回的 trade_date 是 "20260804"，到这里应该是 date/str/datetime
+                logger.warning("write_option_daily: %s 缺少 trade_date, 跳过", ts_code)
+                continue
+
+            rows.append(
+                (
+                    ts_code,
+                    trade_date,
+                    _to_str(r.get("underlying"), ""),
+                    _to_decimal(r.get("open")),
+                    _to_decimal(r.get("high")),
+                    _to_decimal(r.get("low")),
+                    _to_decimal(r.get("close")),
+                    _to_decimal(r.get("settle")),
+                    _to_decimal(r.get("vol")),
+                    _to_decimal(r.get("amount")),
+                    _to_decimal(r.get("oi")),
+                )
             )
-            for r in records
-        ]
         if not rows:
             return 0
 
         sql = """
-        INSERT INTO options_contracts
-            (ts_code, symbol, exchange, name, underlying, call_put,
-             exercise_price, exercise_type, opt_multiplier,
-             maturity_date, list_date, delist_date, adjusted,
-             created_at, updated_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
-        ON CONFLICT (ts_code) DO UPDATE SET
-            symbol         = EXCLUDED.symbol,
-            exchange       = EXCLUDED.exchange,
-            name           = EXCLUDED.name,
-            underlying     = EXCLUDED.underlying,
-            call_put       = EXCLUDED.call_put,
-            exercise_price = EXCLUDED.exercise_price,
-            exercise_type  = EXCLUDED.exercise_type,
-            opt_multiplier = EXCLUDED.opt_multiplier,
-            maturity_date  = EXCLUDED.maturity_date,
-            adjusted       = EXCLUDED.adjusted,
-            updated_at     = NOW();
+        INSERT INTO options_daily
+            ("TsCode", "TradeDate", "Underlying",
+             "Open", "High", "Low", "Close", "Settle",
+             "Vol", "Amount", "Oi")
+        VALUES %s
+        ON CONFLICT ("TsCode", "TradeDate") DO UPDATE SET
+            "Underlying" = EXCLUDED."Underlying",
+            "Open"       = EXCLUDED."Open",
+            "High"       = EXCLUDED."High",
+            "Low"        = EXCLUDED."Low",
+            "Close"      = EXCLUDED."Close",
+            "Settle"     = EXCLUDED."Settle",
+            "Vol"        = EXCLUDED."Vol",
+            "Amount"     = EXCLUDED."Amount",
+            "Oi"         = EXCLUDED."Oi";
         """
         with self._conn() as conn:
             with conn.cursor() as cur:
                 execute_values(cur, sql, rows, page_size=500)
-        logger.info("Upserted %d contract records", len(rows))
+        logger.info("Upserted %d options_daily records", len(rows))
         return len(rows)
 
-    # ── 标的日线 ─────────────────────────────────────────────────────────
-    def write_underlying_daily(self, ts_code: str, trade_date: str, close: float) -> int:
+    # ── 标的日线（PascalCase 列名对齐 EF Core 生成的 underlying_daily） ──
+    def write_underlying_daily(
+        self, ts_code: str, trade_date, close: float
+    ) -> int:
+        """upsert 标的收盘价到 underlying_daily。
+
+        支持 trade_date 传入 str / date / datetime；只接受 6 位以内的 close。
+        """
+        td = _to_date(trade_date)
+        if td is None:
+            logger.warning("write_underlying_daily: %s 无效 trade_date=%r", ts_code, trade_date)
+            return 0
+        cl = _to_decimal(close)
+        if cl is None:
+            logger.warning("write_underlying_daily: %s 无效 close=%r", ts_code, close)
+            return 0
         sql = """
-        INSERT INTO underlying_daily (ts_code, trade_date, close)
+        INSERT INTO underlying_daily ("TsCode", "TradeDate", "Close")
         VALUES (%s, %s, %s)
-        ON CONFLICT (ts_code, trade_date) DO UPDATE SET
-            close = EXCLUDED.close;
+        ON CONFLICT ("TsCode", "TradeDate") DO UPDATE SET
+            "Close" = EXCLUDED."Close";
         """
         with self._conn() as conn:
             with conn.cursor() as cur:
-                cur.execute(sql, (ts_code, trade_date, close))
-        logger.info("Upserted underlying_daily %s %s close=%s", ts_code, trade_date, close)
+                cur.execute(sql, (ts_code, td, cl))
+        logger.info(
+            "Upserted underlying_daily %s %s close=%s", ts_code, td, cl
+        )
         return 1
 
     # ── 期权合约信息（PascalCase 列名对齐 EF Core 生成的 options_contracts） ─
-    def write_option_contracts(self, records: Iterable[dict]) -> int:
+    def upsert_option_contracts(self, records: Iterable[dict]) -> int:
         """批量 upsert 期权合约信息到 options_contracts。
 
         列名：TsCode / Symbol / Exchange / Name / Underlying / CallPut /
               ExercisePrice / ExerciseType / OptMultiplier /
               MaturityDate / ListDate / DelistDate / Adjusted
               / CreatedAt / UpdatedAt
+        记录字段名延续 camelCase（fetcher 输出），写入前转 date / Decimal。
         """
-        rows = []
+        rows: list[tuple] = []
         for r in records:
-            # accept both camelCase (from new fetcher) and snake_case inputs
             ts_code = r.get("ts_code")
             if not ts_code:
                 continue
 
-            maturity_date = r.get("maturity_date")
+            maturity_date = _to_date(r.get("maturity_date"))
             if maturity_date is None:
                 # 无到期日无法建索引，跳过
                 continue
 
-            # maturity_date 可能是 date / datetime / str
-            if isinstance(maturity_date, datetime):
-                mdate = maturity_date.date()
-            elif isinstance(maturity_date, date):
-                mdate = maturity_date
-            else:
-                s = str(maturity_date)
-                try:
-                    mdate = datetime.strptime(s, "%Y-%m-%d").date()
-                except ValueError:
-                    try:
-                        mdate = datetime.strptime(s, "%Y%m%d").date()
-                    except ValueError:
-                        continue
+            list_date = _to_date(r.get("list_date"))
+            delist_date = _to_date(r.get("delist_date"))
 
-            list_date = r.get("list_date")
-            ldate = None
-            if list_date is not None:
-                if isinstance(list_date, datetime):
-                    ldate = list_date.date()
-                elif isinstance(list_date, date):
-                    ldate = list_date
-                else:
-                    try:
-                        ldate = datetime.strptime(str(list_date), "%Y-%m-%d").date()
-                    except ValueError:
-                        ldate = None
-
-            delist_date = r.get("delist_date")
-            ddate = None
-            if delist_date is not None:
-                if isinstance(delist_date, datetime):
-                    ddate = delist_date.date()
-                elif isinstance(delist_date, date):
-                    ddate = delist_date
-                else:
-                    try:
-                        ddate = datetime.strptime(str(delist_date), "%Y-%m-%d").date()
-                    except ValueError:
-                        ddate = None
+            opt_multiplier = _to_decimal(r.get("opt_multiplier")) or Decimal(1)
 
             rows.append(
                 (
                     ts_code,
-                    r.get("symbol") or "",
-                    r.get("exchange") or "SSE",
-                    r.get("name") or "",
-                    r.get("underlying") or "",
-                    r.get("call_put") or "C",
-                    r.get("exercise_price"),
-                    r.get("exercise_type") or "欧式",
-                    r.get("opt_multiplier") if r.get("opt_multiplier") is not None else 1,
-                    mdate,
-                    ldate,
-                    ddate,
+                    _to_str(r.get("symbol"), ""),
+                    _to_str(r.get("exchange"), "SSE"),
+                    _to_str(r.get("name"), ""),
+                    _to_str(r.get("underlying"), ""),
+                    _to_str(r.get("call_put"), "C")[:1],  # CallPut 是 char(1)
+                    _to_decimal(r.get("exercise_price")),
+                    _to_str(r.get("exercise_type"), "欧式"),
+                    opt_multiplier,
+                    maturity_date,
+                    list_date,
+                    delist_date,
                     bool(r.get("adjusted", False)),
                 )
             )
-
         if not rows:
             return 0
 

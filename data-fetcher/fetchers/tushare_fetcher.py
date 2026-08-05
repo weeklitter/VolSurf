@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Optional
 
 import numpy as np
@@ -22,6 +23,28 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════════════════════════════════════
 # 清洗工具
 # ═══════════════════════════════════════════════════════════════════════════
+# Tushare ts_code 编码规则（粗略）：
+#   - 上交所 ETF 期权（SSE）   : 10010xxx.SH  → 50ETF (510050)
+#   - 上交所 ETF 期权（SSE）   : 90009xxx.SH  → 300ETF (510300)
+#   - 深交所 ETF 期权（SZSE） : 90009xxx.SZSE→ 300ETF (510300)（备）
+#   - 中金所股指期权（CFFEX）: IOxxxxxx.CFFEX → 沪深300 (000300)
+_CFFEX_PATTERN = re.compile(r"^IO\d{4,6}\.CFFEX$")
+
+
+def _infer_underlying(ts_code: Optional[str], exchange: Optional[str]) -> str:
+    """从 ts_code/exchange 粗略推断 underlying（写入 Not Null 'Underlying' 列）。"""
+    if not ts_code:
+        return ""
+    code = str(ts_code).strip().upper()
+    if code.endswith(".CFFEX") or exchange == "CFFEX":
+        return "000300"
+    if code.startswith("9000") or exchange == "SZSE":
+        return "510300"
+    if code.startswith("1001") or exchange == "SSE":
+        return "510050"
+    return ""
+
+
 def clean_dataframe(df: pd.DataFrame) -> list[dict]:
     """清洗 Tushare DataFrame：NaN→None、日期转换、numpy→原生类型。"""
     if df is None or len(df) == 0:
@@ -74,9 +97,14 @@ class TushareFetcher(BaseFetcher):
         for exchange in ("SSE", "SZSE", "CFFEX"):
             try:
                 df = self.pro.opt_daily(trade_date=trade_date, exchange=exchange)
-                if df is not None and len(df) > 0:
-                    # 添加 underlying 冗余字段（从合约表里来，但 Tushare 数据已经带）
-                    results.extend(clean_dataframe(df))
+                if df is None or len(df) == 0:
+                    continue
+                # Tushare opt_daily 不返回 underlying 字段；从 exchange + ts_code 前缀推断
+                for record in clean_dataframe(df):
+                    record["underlying"] = _infer_underlying(
+                        record.get("ts_code"), exchange
+                    )
+                    results.append(record)
             except Exception as exc:  # noqa: BLE001
                 logger.error("opt_daily 拉取失败 exchange=%s err=%s", exchange, exc)
         return results

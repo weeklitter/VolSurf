@@ -2,7 +2,10 @@
 
 提供：
   - POST /trigger/manual?trade_date=YYYYMMDD   手动触发日终更新
+  - GET  /trigger/status?trade_date=YYYYMMDD   查询 .NET 计算状态
   - GET  /health                                健康检查
+
+启动时（lifespan）：注册 APScheduler 在每日 17:30（Asia/Shanghai）自动执行。
 """
 from __future__ import annotations
 
@@ -14,6 +17,7 @@ from fastapi import FastAPI, HTTPException, Query
 
 from config import Config
 from db.writer import DbWriter
+from fetchers.akshare_fetcher import AkshareFetcher
 from fetchers.tushare_fetcher import TushareFetcher
 from notify.api_notifier import ApiNotifier
 from scheduler import DailyUpdateScheduler
@@ -22,11 +26,12 @@ logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 应用生命周期
+# 启动时单例装配
 # ═══════════════════════════════════════════════════════════════════════════
 config = Config.load()
 
 fetcher = TushareFetcher(config.tushare_token)
+akshare_fetcher = AkshareFetcher()
 db_writer = DbWriter(
     host=config.db_host,
     port=config.db_port,
@@ -35,9 +40,17 @@ db_writer = DbWriter(
     password=config.db_password,
 )
 api_notifier = ApiNotifier(config.api_base_url, config.internal_key)
-scheduler = DailyUpdateScheduler(fetcher, db_writer, api_notifier)
+scheduler = DailyUpdateScheduler(
+    fetcher=fetcher,
+    db_writer=db_writer,
+    api_notifier=api_notifier,
+    akshare_fetcher=akshare_fetcher,
+)
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# 应用生命周期
+# ═══════════════════════════════════════════════════════════════════════════
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("VolSurf data-fetcher starting")
@@ -75,6 +88,7 @@ async def manual_trigger(
     """手动触发一次日终更新。
 
     异步返回 202，调度逻辑由 DailyUpdateScheduler.run_now 内部执行。
+    失败重试与告警都在 scheduler 内部处理，本接口只负责入队。
     """
     if trade_date is not None and (len(trade_date) != 8 or not trade_date.isdigit()):
         raise HTTPException(status_code=400, detail="trade_date 必须为 YYYYMMDD")
