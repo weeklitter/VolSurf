@@ -1,31 +1,60 @@
-"""历史数据回填脚本。
+"""历史数据回填脚本（任务3）。
 
-按日期范围逐日拉取 Tushare 期权 / 合约 / 标的数据并入库，
-分批触发 .NET 回算 IV（避免一次性把 252 天塞进 Channel）。
+用 Tushare opt_daily 按 trade_date 拉取过去 60 个交易日的
+50ETF 期权日线（仅 SSE），写入 options_daily 表，标的统一标 510050。
 
 使用方式：
-    python backfill.py --start 20250801 --end 20260731
+    python backfill.py                      # 默认回填过去 60 个交易日（截至 20260804）
+    python backfill.py --end 20260804       # 指定结束日期
+    python backfill.py --days 60 --end 20260804
 """
 from __future__ import annotations
 
 import argparse
-import asyncio
 import logging
 from datetime import datetime, timedelta
 
+import pandas as pd
+
 from config import Config
 from db.writer import DbWriter
-from fetchers.tushare_fetcher import TushareFetcher
-from notify.api_notifier import ApiNotifier
+from fetchers.tushare_fetcher import TushareFetcher, clean_dataframe
 
 logger = logging.getLogger(__name__)
 
-UNDERLYINGS = ("510050", "510300", "000300")
-EXCHANGES = ("SSE", "SZSE", "CFFEX")
-RECALC_BATCH_DAYS = 50  # 每批回算触发一次
+# 50ETF 期权标的（写入 options_daily.Underlying），固定不变
+UNDERLYING = "510050"
 
 
-async def backfill(start_date: str, end_date: str) -> None:
+def generate_candidate_dates(end_date: str, days: int) -> list[str]:
+    """从 end_date（含）向前推 N 个自然日，作为候选拉取日期。
+
+    非交易日（Tushare 返回空）会在主循环里被跳过，所以这里无需手工过滤周末。
+    """
+    end = datetime.strptime(end_date, "%Y%m%d")
+    return [(end - timedelta(days=i)).strftime("%Y%m%d") for i in range(days)]
+
+
+def fetch_sse_50etf_daily(fetcher: TushareFetcher, trade_date: str) -> list[dict]:
+    """仅拉取 SSE 交易所的 50ETF 期权日线，标的统一打 510050。"""
+    try:
+        df = fetcher.pro.opt_daily(trade_date=trade_date, exchange="SSE")
+    except Exception as exc:  # noqa: BLE001
+        logger.error("opt_daily 拉取失败 %s: %s", trade_date, exc)
+        return []
+    if df is None or len(df) == 0:
+        return []
+
+    # 用 TushareFetcher 提供的清洗工具：NaN→None、日期转 date、numpy→原生类型
+    records = clean_dataframe(df)
+    for record in records:
+        # 50ETF 期权都在 SSE，标的统一标 510050
+        record["underlying"] = UNDERLYING
+        record.setdefault("trade_date", trade_date)
+    return records
+
+
+def backfill(end_date: str, days: int) -> None:
     config = Config.load()
     fetcher = TushareFetcher(config.tushare_token)
     db_writer = DbWriter(
@@ -35,76 +64,66 @@ async def backfill(start_date: str, end_date: str) -> None:
         user=config.db_user,
         password=config.db_password,
     )
-    api_notifier = ApiNotifier(config.api_base_url, config.internal_key)
 
-    start = datetime.strptime(start_date, "%Y%m%d")
-    end = datetime.strptime(end_date, "%Y%m%d")
-    total_days = (end - start).days + 1
-    processed = 0
+    candidates = generate_candidate_dates(end_date, days)
+    logger.info("候选日期范围: %s → %s, 共 %d 个自然日",
+                candidates[-1], candidates[0], len(candidates))
 
-    batch_start = start
-    current = start
+    total_rows = 0
+    total_days_with_data = 0
+    total_records = []
 
-    while current <= end:
-        trade_date = current.strftime("%Y%m%d")
-        processed += 1
-        logger.info("Backfill %s (%d/%d)", trade_date, processed, total_days)
+    for trade_date in candidates:
+        records = fetch_sse_50etf_daily(fetcher, trade_date)
+        if not records:
+            logger.info("%s 无数据（非交易日或休市）", trade_date)
+            continue
+        total_records.extend(records)
+        total_days_with_data += 1
+        logger.info("%s 拉取 %d 条合约", trade_date, len(records))
 
-        try:
-            # 1. 期权日线
-            option_data = fetcher.fetch_option_daily(trade_date)
-            if option_data:
-                db_writer.write_option_daily(option_data)
+    if not total_records:
+        logger.warning("回填结束：未拉到任何数据")
+        return
 
-            # 2. 合约信息
-            for exchange in EXCHANGES:
-                contracts = fetcher.fetch_option_basic(exchange)
-                if contracts:
-                    db_writer.upsert_option_contracts(contracts)
+    # 用 pandas 统一再清洗一次（去 NaN、统一 trade_date 字符串格式）
+    df_all = pd.DataFrame(total_records)
+    df_all = df_all.replace({pd.NA: None, float("nan"): None})
+    df_all["trade_date"] = pd.to_datetime(
+        df_all["trade_date"], format="%Y%m%d", errors="coerce"
+    ).dt.date
 
-            # 3. 标的价格
-            for ul in UNDERLYINGS:
-                price = fetcher.fetch_underlying_daily(ul, trade_date)
-                if price and price.get("close") is not None:
-                    db_writer.write_underlying_daily(
-                        ul, price["trade_date"], float(price["close"])
-                    )
+    # 转回 records 喂给 DbWriter（DbWriter 内部仍会做一次 _to_date/_to_decimal 保护）
+    final_records = []
+    for r in df_all.to_dict("records"):
+        clean_r = {}
+        for k, v in r.items():
+            if v is None:
+                clean_r[k] = None
+            elif hasattr(v, "isoformat") and not isinstance(v, str):
+                clean_r[k] = v.isoformat()
+            else:
+                clean_r[k] = v
+        final_records.append(clean_r)
 
-            # 4. 每 N 天批量触发 .NET 回算
-            days_done = (current - batch_start).days + 1
-            if days_done % RECALC_BATCH_DAYS == 0 or current == end:
-                logger.info("批量触发 IV 回算 %s → %s", batch_start.strftime("%Y%m%d"), trade_date)
-                await _batch_recalc(api_notifier, batch_start, current)
-                batch_start = current + timedelta(days=1)
-
-            # 5. 限速：Tushare 每分钟最多 200 次
-            await asyncio.sleep(0.5)
-
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Backfill failed %s: %s", trade_date, exc, exc_info=True)
-
-        current += timedelta(days=1)
-
-    logger.info("Backfill 完成: %d 天", processed)
-
-
-async def _batch_recalc(api_notifier: ApiNotifier, start: datetime, end: datetime) -> None:
-    """批量触发指定日期范围的 IV 回算。"""
-    current = start
-    while current <= end:
-        trade_date = current.strftime("%Y%m%d")
-        try:
-            await api_notifier.trigger_calc(trade_date, max_retries=3)
-            await asyncio.sleep(2)  # 限速
-        except Exception as exc:  # noqa: BLE001
-            logger.error("Recalc trigger failed %s: %s", trade_date, exc)
-        current += timedelta(days=1)
+    written = db_writer.write_option_daily(final_records)
+    total_rows = written
+    logger.info(
+        "回填完成: 候选 %d 天 -> 命中 %d 个交易日 -> 共 %d 行 options_daily",
+        len(candidates), total_days_with_data, total_rows,
+    )
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="VolSurf 历史数据回填")
-    parser.add_argument("--start", required=True, help="起始日期 YYYYMMDD")
-    parser.add_argument("--end", required=True, help="结束日期 YYYYMMDD")
+    parser = argparse.ArgumentParser(description="VolSurf 50ETF 期权历史回填")
+    parser.add_argument(
+        "--end", default="20260804",
+        help="结束日期 YYYYMMDD（默认 20260804，从这一天往前推 N 天）",
+    )
+    parser.add_argument(
+        "--days", type=int, default=90,
+        help="向前推的自然日数（默认 90，足以覆盖 60 个交易日，遇到非交易日会跳过）",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -112,4 +131,4 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-    asyncio.run(backfill(args.start, args.end))
+    backfill(end_date=args.end, days=args.days)
