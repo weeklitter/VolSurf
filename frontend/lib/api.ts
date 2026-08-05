@@ -13,6 +13,10 @@ import type {
   IvPercentileResponse,
   TriggerCalcResponse,
   CalcStatusResponse,
+  StockSearchResult,
+  StockListResponse,
+  StockAnalysisReport,
+  StockDailyData,
 } from "./types";
 
 // 服务端渲染（SSR）时 fetch 需要绝对 URL，浏览器端用相对路径走 Next.js rewrite 代理。
@@ -223,6 +227,38 @@ export const api = {
     const json = await res.json();
     return json.data as CalcStatusResponse;
   },
+
+  // ── 11. 股票搜索（CSR） ──
+  searchStocks: (q: string, limit: number = 20) =>
+    request<StockSearchResult[]>(
+      `/stocks/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+      { ssr: false }
+    ),
+
+  // ── 12. 个股分析报告（SSR，缓存 5 分钟） ──
+  getStockAnalysis: (tsCode: string) =>
+    request<StockAnalysisReport>(
+      `/stocks/${encodeURIComponent(tsCode)}/analysis`,
+      { ssr: true, revalidate: 300 }
+    ),
+
+  // ── 13. 股票列表（SSR，缓存 5 分钟） ──
+  getStockList: (industry?: string, page: number = 1, size: number = 20) =>
+    request<StockListResponse>(
+      `/stocks?${industry ? `industry=${encodeURIComponent(industry)}&` : ""}page=${page}&size=${size}`,
+      { ssr: true, revalidate: 300 }
+    ),
+
+  // ── 14. 股票行情/K线数据（CSR） ──
+  getStockDaily: (tsCode: string, start: string, end: string) =>
+    request<StockDailyData[]>(
+      `/stocks/${encodeURIComponent(tsCode)}/daily?start=${start}&end=${end}`,
+      { ssr: false }
+    ),
+
+  // ── 15. 行业列表（SSR，缓存 1 小时） ──
+  getIndustries: () =>
+    request<string[]>("/stocks/industries", { ssr: true, revalidate: 3600 }),
 };
 
 // 导出 request 以供高级用法（自定义 hook 等）

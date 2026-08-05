@@ -140,3 +140,171 @@ export interface CalcStatusResponse {
   tradeDate: string;
   status: TriggerCalcResponse["status"];
 }
+
+
+// ════════════════════════════════════════════════════════════
+// 股票模块类型
+// ════════════════════════════════════════════════════════════
+
+// ── 股票搜索结果 ──
+export interface StockSearchResult {
+  tsCode: string;
+  symbol: string;
+  name: string;
+  industry: string | null;
+  market: string | null;
+}
+
+// ── 股票列表响应 ──
+export interface StockListResponse {
+  stocks: StockSearchResult[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+// ── 指标项 ──
+export interface MetricItem {
+  value: number;
+  prevYear?: number | null;
+  yoyChange?: number | null;
+  trend: "up" | "down" | "stable";
+  score: number;
+  level: "excellent" | "good" | "normal" | "warn" | "danger";
+  label: string;
+  unit: string;
+  description?: string;
+}
+
+// ── 估值项 ──
+export interface ValuationItem {
+  value: number;
+  percentile5y?: number;
+  median5y?: number;
+  min5y?: number;
+  max5y?: number;
+  level: "undervalued" | "fair" | "overvalued";
+  label: string;
+}
+
+// ── 财务指标 ──
+export interface FinancialMetrics {
+  roe?: MetricItem | null;
+  roa?: MetricItem | null;
+  grossMargin?: MetricItem | null;
+  netMargin?: MetricItem | null;
+  debtRatio?: MetricItem | null;
+  revenueGrowth?: MetricItem | null;
+  profitGrowth?: MetricItem | null;
+  ocfToProfit?: MetricItem | null;
+  freeCashFlow?: MetricItem | null;
+  goodwillRatio?: MetricItem | null;
+  recvRatio?: MetricItem | null;
+  revenueTrend: number[];
+  profitTrend: number[];
+  roeTrend: number[];
+  healthScore: number;
+  growthScore: number;
+}
+
+// ── 估值指标 ──
+export interface ValuationMetrics {
+  pe?: ValuationItem | null;
+  peTtm?: ValuationItem | null;
+  pb?: ValuationItem | null;
+  ps?: ValuationItem | null;
+  totalMv?: number;
+  dvRatio?: MetricItem | null;
+  valueScore: number;
+}
+
+// ── 市场表现 ──
+export interface PricePoint {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  ma20?: number | null;
+  ma60?: number | null;
+  ma120?: number | null;
+}
+
+export interface MarketMetrics {
+  price: number;
+  pctChg1M: number;
+  pctChg3M: number;
+  pctChg1Y: number;
+  pctChgYTD: number;
+  vsHs3001Y: number;
+  ma20: number;
+  ma60: number;
+  ma120: number;
+  ma250: number;
+  maTrend: "bull" | "bear" | "mixed";
+  volatility: number;
+  priceTrend: PricePoint[];
+}
+
+// ── 主营业务构成 ──
+export interface BusinessItem {
+  name: string;
+  revenue: number;
+  cost?: number;
+  profit?: number;
+  ratio?: number;
+  margin?: number;
+}
+
+export interface BusinessComposition {
+  byProduct: BusinessItem[];
+  byRegion: BusinessItem[];
+  revenueTrend5y: number[];
+  endDate: string;
+}
+
+// ── 预警 ──
+export interface Warning {
+  type: string;
+  level: "info" | "warn" | "danger";
+  message: string;
+  value: number;
+  threshold: number;
+}
+
+// ── AI分析结果（预留）──
+export interface AiAnalysisResult {
+  summary: string;
+  strengths: string[];
+  risks: string[];
+}
+
+// ── 股票分析报告（核心结构）──
+export interface StockAnalysisReport {
+  tsCode: string;
+  name: string;
+  industry: string;
+  reportDate: string;
+  financial: FinancialMetrics;
+  valuation: ValuationMetrics;
+  market: MarketMetrics;
+  business: BusinessComposition;
+  warnings: Warning[];
+  healthScore: number;
+  growthScore: number;
+  valueScore: number;
+  overallScore: number;
+  aiAnalysis?: AiAnalysisResult | null;
+}
+
+// ── K线数据 ──
+export interface StockDailyData {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  pctChg?: number;
+}
