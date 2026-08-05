@@ -61,6 +61,14 @@ builder.Services.AddScoped<DataValidationService>();
 builder.Services.AddScoped<IvPercentileService>();
 builder.Services.AddScoped<VolSurfaceService>();
 
+// ── 股票模块 ──
+builder.Services.AddScoped<IStockRepository, StockRepository>();
+builder.Services.AddScoped<StockAnalysisService>();
+builder.Services.AddScoped<ValuationService>();
+builder.Services.AddScoped<MarketService>();
+builder.Services.AddScoped<WarningService>();
+// ScoreEngine 是静态类，无需 DI 注册
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Channel<T> + BackgroundService（计算服务寄宿在 API 进程内）
 // ═══════════════════════════════════════════════════════════════════════════
