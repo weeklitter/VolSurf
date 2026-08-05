@@ -8,8 +8,9 @@ const nextConfig = {
     optimizePackageImports: ["lucide-react", "date-fns"],
   },
   // Rewrites: route /api/* to backend so we can use same-origin fetch
+  // BACKEND_URL is server-side only (not exposed to browser)
   async rewrites() {
-    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:5000";
+    const apiBase = process.env.BACKEND_URL || "http://localhost:5000";
     return [
       {
         source: "/api/:path*",
