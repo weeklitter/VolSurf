@@ -2,7 +2,7 @@
 // 首页：品种选择入口
 
 import Link from "next/link";
-import { ChevronRight, TrendingUp, BarChart3, LineChart, Globe } from "lucide-react";
+import { ChevronRight, TrendingUp, BarChart3, LineChart } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
 import type { Underlying } from "@/lib/types";
@@ -16,8 +16,8 @@ export default async function HomePage() {
   return (
     <div className="container py-12">
       {/* Hero */}
-      <section className="text-center max-w-3xl mx-auto mb-16">
-        <h1 className="text-4xl font-bold tracking-tight mb-4">
+      <section className="text-center max-w-3xl mx-auto mb-12 md:mb-16">
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
           VolSurf
         </h1>
         <p className="text-lg text-muted-foreground mb-2">

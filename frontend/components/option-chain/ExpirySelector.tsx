@@ -76,7 +76,7 @@ export function ExpirySelector({ underlying, date }: ExpirySelectorProps) {
         router.push(`?${p.toString()}`);
       }}
     >
-      <SelectTrigger className="w-[180px]">
+      <SelectTrigger className="w-[180px] max-w-[60vw]">
         <SelectValue placeholder="选择到期月" />
       </SelectTrigger>
       <SelectContent>

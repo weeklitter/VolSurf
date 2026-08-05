@@ -54,7 +54,7 @@ export function UnderlyingSelector() {
         router.push(`?${p.toString()}`);
       }}
     >
-      <SelectTrigger className="w-[220px]">
+      <SelectTrigger className="w-[220px] max-w-[60vw]">
         <SelectValue placeholder="选择标的" />
       </SelectTrigger>
       <SelectContent>

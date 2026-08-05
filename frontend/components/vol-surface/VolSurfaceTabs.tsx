@@ -14,27 +14,24 @@ interface VolSurfaceTabsProps {
   date?: string;
   selectedExpiry?: string;
   onExpiryChange?: (expiry: string) => void;
-  expiries?: string[];
 }
 
 export function VolSurfaceTabs({
   underlying,
   date,
   selectedExpiry,
-  expiries = [],
 }: VolSurfaceTabsProps) {
   const [activeTab, setActiveTab] = useState<"3d" | "smile" | "term">("3d");
   const [refreshKey, setRefreshKey] = useState(0);
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
           <TabsList>
             <TabsTrigger value="3d">3D 曲面</TabsTrigger>
-            <TabsTrigger value="smile" disabled={!selectedExpiry}>
-              微笑曲线
-            </TabsTrigger>
+            {/* 微笑曲线 Tab 不再 disabled，用户可随时切换 */}
+            <TabsTrigger value="smile">微笑曲线</TabsTrigger>
             <TabsTrigger value="term">期限结构</TabsTrigger>
           </TabsList>
 

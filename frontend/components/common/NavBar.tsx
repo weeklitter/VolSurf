@@ -8,36 +8,38 @@ export function NavBar() {
   return (
     <header className="border-b bg-background sticky top-0 z-50">
       <div className="container flex h-14 items-center justify-between">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-2 font-semibold">
+        <div className="flex items-center gap-4 sm:gap-8">
+          <Link href="/" className="flex items-center gap-2 font-semibold shrink-0">
             <Activity className="h-5 w-5 text-primary" />
             <span>VolSurf</span>
           </Link>
-          <nav className="flex items-center gap-6 text-sm">
+          <nav className="flex items-center gap-4 sm:gap-6 text-sm">
             <Link
               href="/"
               className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
             >
               <Home className="h-4 w-4" />
-              首页
+              <span className="hidden sm:inline">首页</span>
             </Link>
             <Link
               href="/options-chain"
               className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
             >
               <LineChart className="h-4 w-4" />
-              期权链
+              <span className="hidden sm:inline">期权链</span>
             </Link>
             <Link
               href="/vol-surface"
               className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
             >
               <BarChart3 className="h-4 w-4" />
-              波动率分析
+              <span className="hidden sm:inline">波动率分析</span>
             </Link>
           </nav>
         </div>
-        <div className="text-xs text-muted-foreground">期权分析平台 v0.1.0</div>
+        <div className="text-xs text-muted-foreground hidden sm:block">
+          期权分析平台 v0.1.0
+        </div>
       </div>
     </header>
   );
