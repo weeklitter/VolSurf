@@ -15,7 +15,13 @@ import type {
   CalcStatusResponse,
 } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
+// 服务端渲染（SSR）时 fetch 需要绝对 URL，浏览器端用相对路径走 Next.js rewrite 代理。
+const API_BASE =
+  typeof window === "undefined"
+    ? process.env.BACKEND_URL
+      ? `${process.env.BACKEND_URL}/api`
+      : "http://localhost:5000/api"
+    : process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
 
 // ── 统一错误类型 ──
 export class ApiError extends Error {
