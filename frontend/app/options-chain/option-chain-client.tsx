@@ -12,6 +12,7 @@ import { Loading } from "@/components/common/Loading";
 import { ErrorState } from "@/components/common/ErrorState";
 import { api, ApiError } from "@/lib/api";
 import { formatPrice } from "@/lib/utils";
+import type { OptionChainResponse } from "@/lib/types";
 
 interface OptionChainClientProps {
   underlying: string;

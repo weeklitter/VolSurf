@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { Loading } from "@/components/common/Loading";
 import { ErrorState } from "@/components/common/ErrorState";
+import type { VolSurfaceResponse, VolSurfacePoint } from "@/lib/types";
 
 const Plot = dynamic(() => import("react-plotly.js"), {
   ssr: false,
@@ -56,7 +57,7 @@ export function VolSurface3D({ underlying, date, refreshKey = 0 }: VolSurface3DP
   }
 
   // 按到期月分组，每组一条 trace
-  const expiries = Array.from(new Set(data.points.map((p) => p.expiry))).sort();
+  const expiries = Array.from(new Set(data.points.map((p: VolSurfacePoint) => p.expiry))).sort();
 
   // 配色方案
   const palette = [
@@ -70,16 +71,16 @@ export function VolSurface3D({ underlying, date, refreshKey = 0 }: VolSurface3DP
     "#7f7f7f",
   ];
 
-  const traces = expiries.map((exp, i) => {
-    const expPoints = data.points.filter((p) => p.expiry === exp);
+  const traces = expiries.map((exp: string, i: number) => {
+    const expPoints = data.points.filter((p: VolSurfacePoint) => p.expiry === exp);
     return {
       type: "scatter3d" as const,
       mode: "markers" as const,
-      x: expPoints.map((p) => p.moneyness),
-      y: expPoints.map((p) => p.timeToExpiry),
-      z: expPoints.map((p) => p.iv),
+      x: expPoints.map((p: VolSurfacePoint) => p.moneyness),
+      y: expPoints.map((p: VolSurfacePoint) => p.timeToExpiry),
+      z: expPoints.map((p: VolSurfacePoint) => p.iv),
       text: expPoints.map(
-        (p) =>
+        (p: VolSurfacePoint) =>
           `${p.callPut === "C" ? "认购" : "认沽"} K=${p.strike.toFixed(4)} ` +
           `IV=${(p.iv * 100).toFixed(2)}%`
       ),

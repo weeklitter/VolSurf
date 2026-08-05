@@ -4,6 +4,17 @@
 // - 统一 request() 封装（支持 SSR 缓存 + CSR）
 // - 7 个业务接口
 
+import type {
+  Underlying,
+  OptionChainResponse,
+  VolSurfaceResponse,
+  VolSmileResponse,
+  TermStructureResponse,
+  IvPercentileResponse,
+  TriggerCalcResponse,
+  CalcStatusResponse,
+} from "./types";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
 
 // ── 统一错误类型 ──

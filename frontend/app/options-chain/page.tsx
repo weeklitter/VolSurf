@@ -3,6 +3,7 @@
 
 import { Suspense } from "react";
 import { api } from "@/lib/api";
+import type { OptionChainResponse } from "@/lib/types";
 import { OptionChainClient } from "./option-chain-client";
 
 export const revalidate = 300; // 5 分钟缓存

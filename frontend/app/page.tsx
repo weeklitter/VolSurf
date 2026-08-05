@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronRight, TrendingUp, BarChart3, LineChart, Globe } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
+import type { Underlying } from "@/lib/types";
 
 export const revalidate = 300; // 5 分钟缓存
 

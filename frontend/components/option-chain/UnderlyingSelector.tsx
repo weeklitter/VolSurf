@@ -15,6 +15,7 @@ import {
 import { api, ApiError } from "@/lib/api";
 import { Loading } from "@/components/common/Loading";
 import { ErrorState } from "@/components/common/ErrorState";
+import type { Underlying } from "@/lib/types";
 
 export function UnderlyingSelector() {
   const router = useRouter();

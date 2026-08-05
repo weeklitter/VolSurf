@@ -8,6 +8,7 @@ import { api, ApiError } from "@/lib/api";
 import { Loading } from "@/components/common/Loading";
 import { ErrorState } from "@/components/common/ErrorState";
 import { formatIv } from "@/lib/utils";
+import type { TermStructureResponse } from "@/lib/types";
 import * as echarts from "echarts/core";
 import { LineChart, BarChart } from "echarts/charts";
 import {

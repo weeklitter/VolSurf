@@ -11,6 +11,7 @@ import { api, ApiError } from "@/lib/api";
 import { Loading } from "@/components/common/Loading";
 import { ErrorState } from "@/components/common/ErrorState";
 import { formatIv, formatPercent } from "@/lib/utils";
+import type { VolSmileResponse, SmilePoint } from "@/lib/types";
 import * as echarts from "echarts/core";
 import { LineChart, ScatterChart } from "echarts/charts";
 import {
@@ -81,10 +82,10 @@ export function VolSmileChart({
   const atmIv = data.atmIv;
   const allStrikes = Array.from(
     new Set([
-      ...data.calls.map((c) => c.strike),
-      ...data.puts.map((p) => p.strike),
+      ...data.calls.map((c: SmilePoint) => c.strike),
+      ...data.puts.map((p: SmilePoint) => p.strike),
     ])
-  ).sort((a, b) => a - b);
+  ).sort((a: number, b: number) => a - b);
 
   const option = {
     title: {
@@ -124,8 +125,8 @@ export function VolSmileChart({
         name: "认购 IV",
         type: "line" as const,
         data: data.calls
-          .sort((a, b) => a.strike - b.strike)
-          .map((c) => [c.strike, c.iv, c.delta]),
+          .sort((a: SmilePoint, b: SmilePoint) => a.strike - b.strike)
+          .map((c: SmilePoint) => [c.strike, c.iv, c.delta]),
         smooth: true,
         itemStyle: { color: "#d62728" },
         lineStyle: { width: 2 },
@@ -139,8 +140,8 @@ export function VolSmileChart({
         name: "认沽 IV",
         type: "line" as const,
         data: data.puts
-          .sort((a, b) => a.strike - b.strike)
-          .map((p) => [p.strike, p.iv, p.delta]),
+          .sort((a: SmilePoint, b: SmilePoint) => a.strike - b.strike)
+          .map((p: SmilePoint) => [p.strike, p.iv, p.delta]),
         smooth: true,
         itemStyle: { color: "#1f77b4" },
         lineStyle: { width: 2 },
