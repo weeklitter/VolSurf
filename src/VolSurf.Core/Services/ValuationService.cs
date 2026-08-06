@@ -31,13 +31,10 @@ public class ValuationService(IStockRepository repo)
         var history = await repo.GetDailyBasicHistoryAsync(tsCode, LookbackDays);
 
         // 3. 计算各估值指标分位
-        var pe = CalcValuationItem(history, latest.Pe, latest.PeTtm, "PE");
-        var peTtm = CalcValuationItem(history.Where(h => h.PeTtm.HasValue).ToList(),
-            latest.PeTtm, latest.PeTtm, "PE TTM");
-        var pb = CalcValuationItem(history.Where(h => h.Pb.HasValue).ToList(),
-            latest.Pb, latest.Pb, "PB");
-        var ps = CalcValuationItem(history.Where(h => h.Ps.HasValue).ToList(),
-            latest.Ps, latest.PsTtm, "PS");
+        var pe = CalcValuationItem(history, latest.Pe, latest.PeTtm, "PE", h => h.Pe);
+        var peTtm = CalcValuationItem(history, latest.PeTtm, latest.PeTtm, "PE TTM", h => h.PeTtm);
+        var pb = CalcValuationItem(history, latest.Pb, latest.Pb, "PB", h => h.Pb);
+        var ps = CalcValuationItem(history, latest.Ps, latest.PsTtm, "PS", h => h.Ps);
 
         // 4. 股息率
         var dvRatio = CalcDvRatio(latest.DvRatio, history);
@@ -63,14 +60,15 @@ public class ValuationService(IStockRepository repo)
     /// <summary>计算单个估值指标的分位信息</summary>
     private ValuationItemDto? CalcValuationItem(
         List<Data.Entities.StockDailyBasic> history,
-        decimal? currentValue, decimal? ttmValue, string label)
+        decimal? currentValue, decimal? ttmValue, string label,
+        Func<Data.Entities.StockDailyBasic, decimal?> selector)
     {
         if (!currentValue.HasValue || currentValue <= 0)
             return null;
 
         var values = history
-            .Where(h => h.Pe.HasValue && h.Pe > 0) // 过滤负值和零值
-            .Select(h => (double)h.Pe!.Value)
+            .Where(h => selector(h).HasValue && selector(h) > 0) // 过滤负值和零值
+            .Select(h => (double)selector(h)!.Value)
             .ToList();
 
         if (values.Count == 0)

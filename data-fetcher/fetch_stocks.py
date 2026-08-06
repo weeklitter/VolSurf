@@ -493,7 +493,7 @@ class StockDbWriter(DbWriter):
                 _to_decimal(r.get("total_liab")),
                 _to_decimal(r.get("total_hldr_eqy_exc_min_int")),
                 _to_decimal(r.get("goodwill")),
-                _to_decimal(r.get("accounts_recv")),
+                _to_decimal(r.get("accounts_receiv")),
                 _to_decimal(r.get("inventories")),
                 update_date,
             ))

@@ -44,7 +44,7 @@ public class StockAnalysisService(IStockRepository repo)
         var roa = CalcRoa(latestIncome, latestBs, prevYearIncome);
         var grossMargin = CalcGrossMargin(latestIncome, prevYearIncome);
         var netMargin = CalcNetMargin(latestIncome, prevYearIncome);
-        var debtRatio = CalcDebtRatio(latestBs);
+        var debtRatio = CalcDebtRatio(latestBs, industry);
         var revenueGrowth = CalcRevenueGrowth(latestIncome, prevYearIncome);
         var profitGrowth = CalcProfitGrowth(latestIncome, prevYearIncome);
         var ocfToProfit = CalcOcfToProfit(latestCf, latestIncome);
@@ -244,16 +244,17 @@ public class StockAnalysisService(IStockRepository repo)
         };
     }
 
-    /// <summary>资产负债率 = 总负债 / 总资产 × 100%</summary>
-    private MetricItemDto? CalcDebtRatio(StockBalanceSheet? bs)
+    /// <summary>资产负债率 = 总负债 / 总资产 × 100%（金融行业豁免，返回满分100）</summary>
+    private MetricItemDto? CalcDebtRatio(StockBalanceSheet? bs, string? industry)
     {
         if (bs?.TotalAssets == null || bs.TotalAssets == 0 || bs.TotalLiab == null)
             return null;
 
         double value = (double)(bs.TotalLiab.Value / bs.TotalAssets.Value) * 100;
 
-        // 评分在 ScoreEngine.CalculateHealthScore 中根据行业判断，这里只返回值
-        double score = ScoreEngine.LinearInterpolate(value, ScoreEngine.DebtRatioThresholds);
+        // 金融行业负债率豁免：银行/保险/证券的高负债率是正常经营模式，返回满分
+        bool isFinance = ScoreEngine.IsFinanceIndustry(industry);
+        double score = isFinance ? 100 : ScoreEngine.LinearInterpolate(value, ScoreEngine.DebtRatioThresholds);
 
         return new MetricItemDto
         {
