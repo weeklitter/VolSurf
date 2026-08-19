@@ -12,6 +12,7 @@ Usage:
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import time
 from datetime import datetime, timedelta
@@ -30,7 +31,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-TUSHARE_TOKEN = "__TUSHARE_TOKEN__"
+# 从环境变量读取，勿硬编码（见 .env.example）
+TUSHARE_TOKEN = os.environ.get("TUSHARE_TOKEN", "")
 
 
 def generate_date_range(start_date: str, end_date: str) -> list[str]:
@@ -254,9 +256,9 @@ def main():
     db_writer = DbWriter(
         host="localhost",
         port=5432,
-        dbname="volsurf",
-        user="volsurf",
-        password="__DB_PASSWORD__",
+        dbname=os.environ.get("DB_NAME", "volsurf"),
+        user=os.environ.get("DB_USER", "volsurf"),
+        password=os.environ.get("DB_PASSWORD", ""),
     )
 
     # Date range: match the 510050/510300 options_daily range (2026-05-07 to 2026-08-04)

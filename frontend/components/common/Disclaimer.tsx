@@ -28,7 +28,15 @@ export function Disclaimer() {
         </div>
         <div className="mt-4 pt-4 border-t text-xs text-muted-foreground flex justify-between">
           <span>© {new Date().getFullYear()} VolSurf</span>
-          <span>Built with Next.js + TypeScript + TailwindCSS</span>
+          <span className="flex items-center gap-4">
+            <a
+              href="mailto:weeklitter@163.com?subject=VolSurf%20%E5%8F%8D%E9%A6%88"
+              className="hover:text-foreground underline underline-offset-2"
+            >
+              联系 / 反馈
+            </a>
+            <span>Built with Next.js + TypeScript + TailwindCSS</span>
+          </span>
         </div>
       </div>
     </footer>

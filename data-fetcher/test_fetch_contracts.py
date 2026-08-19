@@ -4,12 +4,13 @@
     cd data-fetcher && python3 test_fetch_contracts.py
 
 成功后查询数据库：
-    PGPASSWORD=__DB_PASSWORD__ psql -h localhost -U volsurf -d volsurf \
+    PGPASSWORD=$DB_PASSWORD psql -h localhost -U volsurf -d volsurf \
       -c 'SELECT COUNT(*), MIN("MaturityDate"), MAX("MaturityDate") FROM options_contracts;'
 """
 from __future__ import annotations
 
 import logging
+import os
 import sys
 
 from fetchers.akshare_fetcher import AkshareFetcher
@@ -50,9 +51,9 @@ def main() -> int:
     writer = DbWriter(
         host="localhost",
         port=5432,
-        dbname="volsurf",
-        user="volsurf",
-        password="__DB_PASSWORD__",
+        dbname=os.environ.get("DB_NAME", "volsurf"),
+        user=os.environ.get("DB_USER", "volsurf"),
+        password=os.environ.get("DB_PASSWORD", ""),
     )
     written = writer.upsert_option_contracts(contracts)
     log.info("成功写入 %d 条", written)
@@ -61,8 +62,9 @@ def main() -> int:
     import psycopg2
 
     with psycopg2.connect(
-        host="localhost", port=5432, dbname="volsurf",
-        user="volsurf", password="__DB_PASSWORD__",
+        host="localhost", port=5432, dbname=os.environ.get("DB_NAME", "volsurf"),
+        user=os.environ.get("DB_USER", "volsurf"),
+        password=os.environ.get("DB_PASSWORD", ""),
     ) as conn:
         with conn.cursor() as cur:
             cur.execute('SELECT COUNT(*) FROM options_contracts')
