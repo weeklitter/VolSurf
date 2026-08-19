@@ -1,5 +1,6 @@
 # ── build stage ──
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+# 镜像源：m.daocloud.io/mcr.microsoft.com（国内代理，直连 mcr 不稳）
+FROM m.daocloud.io/mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
 # 复制 csproj 并 restore（缓存依赖层）
@@ -18,7 +19,7 @@ RUN dotnet publish src/VolSurf.Api/VolSurf.Api.csproj \
     /p:UseAppHost=false
 
 # ── runtime stage ──
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM m.daocloud.io/mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 
 # 健康检查需要 curl
