@@ -14,7 +14,9 @@ services:
       api:
         condition: service_healthy
     environment:
-      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://volsurf.yourdomain.com/api}
+      # SSR/rewrite 用：容器内访问 API 服务（compose 网络）
+      BACKEND_URL: http://api:8080
+      NEXT_PUBLIC_API_BASE_URL: /api
     logging:
       driver: json-file
       options:
@@ -94,6 +96,7 @@ services:
         max-file: "3"
 
   nginx:
+    profiles: ["domain"]  # 仅使用自有域名 + Let's Encrypt 时启用；Tailscale Funnel 场景不需要
     image: nginx:alpine
     ports:
       - "80:80"
